@@ -1210,37 +1210,42 @@ function commitHistory() {
   if (!T || !T.players) return;
   var c = calcPozo();
   if (c.active.length === 0) return;
-  // Prevent committing the same torneo twice — check Firebase directly
   var nroToCommit = T.nro;
-  if (nroToCommit === _lastCommittedNro) return;
-  _lastCommittedNro = nroToCommit;
-  DB.ref("lastCommittedNro").set(nroToCommit);
+  // Always verify against Firebase to prevent double-commit after reload
+  DB.ref("lastCommittedNro").once("value", function(snap) {
+    if (nroToCommit === snap.val()) {
+      alert("Este torneo ya fue registrado. No se puede compartir dos veces.");
+      return;
+    }
+    _lastCommittedNro = nroToCommit;
+    DB.ref("lastCommittedNro").set(nroToCommit);
 
-  var pr = calcPremios(c.pozo, c.active.length);
-  c.active.forEach(function(p) {
-    if (!H[p.name]) H[p.name] = {veces:0, torneos:0, res:0, prevVeces:0, prevTorneos:0};
-    var currentRes = parseFloat(H[p.name].res);
-    if (isNaN(currentRes)) currentRes = 0;
-    H[p.name].torneos = (parseInt(H[p.name].torneos)||0) + 1;
-    if (p.name === T.host) H[p.name].veces = (parseInt(H[p.name].veces)||0) + 1;
-    var buyin  = (p.cajasIni+p.rebuys)*cajaVal();
-    var isW    = p.pos>=1 && p.pos<=pr.ng;
-    var pmBase = isW ? pr.amounts[p.pos-1] : 0;
-    var premio = (p.premioOverride >= 0) ? p.premioOverride : pmBase;
-    H[p.name].res = currentRes + (premio - buyin);
-    if (isW) H[p.name].pts = (parseInt(H[p.name].pts)||0) + (pr.ng - p.pos + 1);
-  });
-  saveH();
+    var pr = calcPremios(c.pozo, c.active.length);
+    c.active.forEach(function(p) {
+      if (!H[p.name]) H[p.name] = {veces:0, torneos:0, res:0, prevVeces:0, prevTorneos:0};
+      var currentRes = parseFloat(H[p.name].res);
+      if (isNaN(currentRes)) currentRes = 0;
+      H[p.name].torneos = (parseInt(H[p.name].torneos)||0) + 1;
+      if (p.name === T.host) H[p.name].veces = (parseInt(H[p.name].veces)||0) + 1;
+      var buyin  = (p.cajasIni+p.rebuys)*cajaVal();
+      var isW    = p.pos>=1 && p.pos<=pr.ng;
+      var pmBase = isW ? pr.amounts[p.pos-1] : 0;
+      var premio = (p.premioOverride >= 0) ? p.premioOverride : pmBase;
+      H[p.name].res = currentRes + (premio - buyin);
+      if (isW) H[p.name].pts = (parseInt(H[p.name].pts)||0) + (pr.ng - p.pos + 1);
+    });
+    saveH();
 
-  // Save torneo record to historialTorneos
-  var htRecord = {nro:T.nro, fecha:T.fecha, tipo:T.tipo, host:T.host, jugadores:{}};
-  c.active.forEach(function(p) {
-    var bi2=(p.cajasIni+p.rebuys)*cajaVal();
-    var isW2=p.pos>=1&&p.pos<=pr.ng;
-    var pm2=(p.premioOverride>=0)?p.premioOverride:(isW2?pr.amounts[p.pos-1]:0);
-    htRecord.jugadores[p.name]={cajas:p.cajasIni+p.rebuys,pos:p.pos||0,resultado:pm2-bi2,isHost:p.name===T.host};
+    // Save torneo record to historialTorneos
+    var htRecord = {nro:T.nro, fecha:T.fecha, tipo:T.tipo, host:T.host, jugadores:{}};
+    c.active.forEach(function(p) {
+      var bi2=(p.cajasIni+p.rebuys)*cajaVal();
+      var isW2=p.pos>=1&&p.pos<=pr.ng;
+      var pm2=(p.premioOverride>=0)?p.premioOverride:(isW2?pr.amounts[p.pos-1]:0);
+      htRecord.jugadores[p.name]={cajas:p.cajasIni+p.rebuys,pos:p.pos||0,resultado:pm2-bi2,isHost:p.name===T.host};
+    });
+    DB.ref("historialTorneos/T"+T.nro).set(htRecord);
   });
-  DB.ref("historialTorneos/T"+T.nro).set(htRecord, function(err){ console.log(err ? "historialTorneos ERROR:"+err : "historialTorneos OK T"+T.nro); });
 }
 
 document.getElementById("btn-reset").addEventListener("click", function() {
