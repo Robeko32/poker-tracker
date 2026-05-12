@@ -236,7 +236,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--f);font-size:14px;
 </table></div>
 
 <div class="panel">
-  <div class="ph2"><h2>Liquidación — quién paga a quién</h2></div>
+  <div class="ph2" style="display:flex;align-items:center;justify-content:space-between">
+    <h2>Liquidación — quién paga a quién</h2>
+    <button class="btn" onclick="openPagoModal()" style="font-size:11px;height:26px;padding:0 10px">+ Pago</button>
+  </div>
   <div class="pb2" id="pay-body"><span class="nop">Asigna posiciones para calcular pagos.</span></div>
 </div>
 
@@ -271,6 +274,25 @@ body{background:var(--bg);color:var(--text);font-family:var(--f);font-size:14px;
   &#9679; Comida $8.000 por asistente al host. El host no paga.<br>
   &#9679; Sincronizado en tiempo real con Firebase.
 </div>
+</div>
+
+<!-- Pago Extra Modal -->
+<div id="modal-pago" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:600;align-items:center;justify-content:center">
+  <div style="background:var(--bg);margin:auto;width:290px;border-radius:12px;padding:20px;box-shadow:0 8px 32px rgba(0,0,0,0.4)">
+    <div style="font-size:14px;font-weight:600;color:var(--fg);margin-bottom:14px">Agregar pago extra</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Paga</div>
+    <select id="pago-de" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--fg);font-size:14px;margin-bottom:10px"></select>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Recibe</div>
+    <select id="pago-a" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--fg);font-size:14px;margin-bottom:10px"></select>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Monto</div>
+    <input type="number" id="pago-monto" inputmode="numeric" pattern="[0-9]*"
+      style="width:100%;box-sizing:border-box;font-size:20px;font-weight:600;text-align:center;padding:10px;border:2px solid var(--blue);border-radius:8px;background:var(--bg2);color:var(--fg);outline:none;margin-bottom:14px"
+      placeholder="0">
+    <div style="display:flex;gap:8px">
+      <button onclick="document.getElementById('modal-pago').style.display='none'" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--fg);font-size:14px;cursor:pointer">Cancelar</button>
+      <button onclick="confirmPagoModal()" style="flex:1;padding:10px;border:none;border-radius:8px;background:var(--blue);color:#fff;font-size:14px;font-weight:600;cursor:pointer">Agregar</button>
+    </div>
+  </div>
 </div>
 
 <!-- Premio Edit Modal -->
@@ -1499,10 +1521,18 @@ document.getElementById("btn-share").addEventListener("click", function() {
   var fname="resumen_poker_T"+T.nro+".pdf";
   var pdfBlob=doc.output("blob");
   var pdfUrl=URL.createObjectURL(pdfBlob);
-  var isMobile=navigator.maxTouchPoints>0;
-  if(isMobile&&navigator.share&&navigator.canShare&&navigator.canShare({files:[new File([pdfBlob],fname,{type:"application/pdf"})]})){
-    navigator.share({title:"Team Poker Torneo #"+T.nro,text:"Resumen del torneo",files:[new File([pdfBlob],fname,{type:"application/pdf"})]}).catch(function(){dlPdf(pdfUrl,fname);});
-  } else { dlPdf(pdfUrl,fname); }
+  var pdfFile = new File([pdfBlob],fname,{type:"application/pdf"});
+  var canShareFile = navigator.share && navigator.canShare && navigator.canShare({files:[pdfFile]});
+  if(canShareFile){
+    navigator.share({title:"Team Poker Torneo #"+T.nro,text:"Resumen del torneo",files:[pdfFile]})
+      .catch(function(err){
+        // Share was cancelled or failed — fallback to download
+        if(err.name !== "AbortError") dlPdf(pdfUrl,fname);
+      });
+  } else {
+    // Fallback: direct download (works on all devices including Android)
+    dlPdf(pdfUrl,fname);
+  }
 
   function dlPdf(url,name){var a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},300);}
 });
