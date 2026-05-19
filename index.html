@@ -506,6 +506,7 @@ function startListeners() {
       });
       if (!T.pagoOverrides) T.pagoOverrides = {};
       _pagosExtra = T.pagosExtra || [];
+      _gastosCompartidos = T.gastosCompartidos || [];
     } else {
       T = defT();
       saveT();
@@ -826,40 +827,47 @@ function renderPayments() {
   var c = calcPozo();
   var anyPos = c.active.some(function(p){return p.pos > 0;});
   if (!anyPos) { body.innerHTML = '<span class="nop">Asigna posiciones para calcular pagos.</span>'; return; }
-  var pagos = calcPagos();
-  if(!pagos.length) { body.innerHTML='<span class="nop">Todo cuadra — no hay pagos pendientes.</span>'; return; }
   if (!T.pagoOverrides) T.pagoOverrides = {};
-  var sumBase=0, sumOver=0;
-  pagos.forEach(function(p){ sumBase+=p.montoBase; });
-  var html = pagos.map(function(p) {
-    var key=p.de+"_"+p.a;
-    var ov=T.pagoOverrides[key];
-    var edited=(ov!==undefined&&ov>=0);
-    var monto=edited?ov:p.montoBase;
-    sumOver+=monto;
-    return '<div class="payrow">'
-      +'<span class="pfrom">'+p.de+'</span>'
-      +'<span class="parrow">→</span>'
-      +'<span class="pto">'+p.a+'</span>'
-      +'<input type="text" inputmode="numeric" class="pamt-inp'+(edited?' edited':'')+'"'
-      +' value="'+Math.round(monto)+'"'
-      +' onchange="handlePagoEdit(\x27'+p.de+'_'+p.a+'\x27,this.value)">'
-      +'</div>';
-  }).join("");
-  var diff=Math.abs(sumOver-sumBase);
-  if(diff>10) html+='<div style="background:#dc2626;color:#fff;font-weight:700;font-size:12px;padding:8px 12px;border-radius:6px;margin-top:6px;text-align:center">⚠ Los pagos suman $'+Math.round(sumOver).toLocaleString("es-CL")+' pero el total calculado es $'+Math.round(sumBase).toLocaleString("es-CL")+'. Diferencia: $'+Math.round(diff).toLocaleString("es-CL")+'</div>';
-  // Extra payments
-  if(_pagosExtra && _pagosExtra.length){
-    html += '<div style="font-size:11px;color:var(--muted);padding:6px 0 2px;font-weight:600;border-top:1px solid var(--border);margin-top:6px">Pagos adicionales</div>';
-    _pagosExtra.forEach(function(pe,idx2){
-      html += '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border2)">'
-        +'<span style="flex:1;font-size:13px;color:#dc2626;font-weight:500">'+pe.de+'</span>'
-        +'<span style="font-size:11px;color:var(--muted)">→</span>'
-        +'<span style="flex:1;font-size:13px;color:#16a34a;font-weight:500">'+pe.a+'</span>'
-        +'<span style="font-family:var(--m);font-size:13px;font-weight:600">$'+Math.round(pe.monto).toLocaleString("es-CL")+'</span>'
-        +'<button onclick="eliminarPagoExtra('+idx2+')" style="background:none;border:none;color:#dc2626;font-size:14px;cursor:pointer;padding:0 4px">✕</button>'
-        +'</div>';
-    });
+  var hasExtras = (_pagosExtra&&_pagosExtra.length)||(_gastosCompartidos&&_gastosCompartidos.length);
+  var html = "";
+  if(_mostrandoNeto && hasExtras){
+    html += '<div style="font-size:11px;color:var(--muted);padding:4px 0 6px;font-weight:600">Pagos consolidados (neto)</div>';
+    var netos = calcPagosNetos();
+    if(!netos.length){ html += '<span class="nop">Todo cuadra.</span>'; }
+    else { netos.forEach(function(p){
+      html += '<div class="payrow"><span class="pfrom">'+p.de+'</span><span class="parrow">→</span>'
+        +'<span class="pto">'+p.a+'</span><span style="font-family:var(--m);font-size:14px;font-weight:700">$'+p.monto.toLocaleString("es-CL")+'</span></div>';
+    });}
+    html += '<button onclick="_mostrandoNeto=false;renderPayments()" style="width:100%;margin-top:10px;padding:7px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--muted);font-size:12px;cursor:pointer">Ver detalle</button>';
+  } else {
+    var pagos = calcPagos();
+    var sumBase=0,sumOver=0; pagos.forEach(function(p){sumBase+=p.montoBase;});
+    if(pagos.length){
+      if(hasExtras) html += '<div style="font-size:11px;color:var(--muted);padding:4px 0 4px;font-weight:600">Pagos del juego</div>';
+      html += pagos.map(function(p){
+        var key=p.de+"_"+p.a; var ov=T.pagoOverrides[key];
+        var edited=(ov!==undefined&&ov>=0); var monto=edited?ov:p.montoBase; sumOver+=monto;
+        return '<div class="payrow"><span class="pfrom">'+p.de+'</span><span class="parrow">→</span><span class="pto">'+p.a+'</span>'
+          +'<input type="text" inputmode="numeric" class="pamt-inp'+(edited?' edited':'')+'" value="'+Math.round(monto)+'" onchange="handlePagoEdit(\x27'+p.de+'_'+p.a+'\x27,this.value)"></div>';
+      }).join("");
+      var diff=Math.abs(sumOver-sumBase);
+      if(diff>10) html+='<div style="background:#dc2626;color:#fff;font-weight:700;font-size:12px;padding:8px 12px;border-radius:6px;margin-top:6px;text-align:center">⚠ Los pagos suman $'+Math.round(sumOver).toLocaleString("es-CL")+' pero el total es $'+Math.round(sumBase).toLocaleString("es-CL")+'. Dif: $'+Math.round(diff).toLocaleString("es-CL")+'</div>';
+    } else { html += '<span class="nop">Sin pagos del juego.</span>'; }
+    if(_pagosExtra&&_pagosExtra.length){
+      html += '<div style="font-size:11px;color:var(--muted);padding:6px 0 2px;font-weight:600;border-top:1px solid var(--border);margin-top:6px">Pagos adicionales</div>';
+      _pagosExtra.forEach(function(pe,i2){
+        html += '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--border2)"><span style="flex:1;font-size:13px;color:#dc2626;font-weight:500">'+pe.de+'</span><span style="font-size:11px;color:var(--muted)">→</span><span style="flex:1;font-size:13px;color:#16a34a;font-weight:500">'+pe.a+'</span><span style="font-family:var(--m);font-size:13px;font-weight:600">$'+Math.round(pe.monto).toLocaleString("es-CL")+'</span><button onclick="eliminarPagoExtra('+i2+')" style="background:none;border:none;color:#dc2626;font-size:14px;cursor:pointer;padding:0 4px">✕</button></div>';
+      });
+    }
+    if(_gastosCompartidos&&_gastosCompartidos.length){
+      _gastosCompartidos.forEach(function(g,gi){
+        html += '<div style="font-size:11px;color:var(--muted);padding:6px 0 2px;font-weight:600;border-top:1px solid var(--border);margin-top:6px;display:flex;align-items:center;justify-content:space-between"><span>'+g.concepto+' (pagó '+g.quien+')</span><button onclick="eliminarGasto('+gi+')" style="background:none;border:none;color:#dc2626;font-size:12px;cursor:pointer">✕</button></div>';
+        g.participantes.forEach(function(p){
+          if(p.name!==g.quien){ html += '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border2)"><span style="flex:1;font-size:13px;color:#dc2626;font-weight:500">'+p.name+'</span><span style="font-size:11px;color:var(--muted)">→</span><span style="flex:1;font-size:13px;color:#16a34a;font-weight:500">'+g.quien+'</span><span style="font-family:var(--m);font-size:13px;font-weight:600">$'+Math.round(p.parte).toLocaleString("es-CL")+'</span></div>'; }
+        });
+      });
+    }
+    if(hasExtras){ html += '<button onclick="_mostrandoNeto=true;renderPayments()" style="width:100%;margin-top:10px;padding:7px;border:none;border-radius:8px;background:var(--blue);color:#fff;font-size:12px;font-weight:600;cursor:pointer">Optimizar pagos → ver consolidado</button>'; }
   }
   body.innerHTML = html;
 }
@@ -1501,9 +1509,15 @@ document.getElementById("btn-share").addEventListener("click", function() {
   var t2v=function(r){return[String(t2s.indexOf(r)+1)+".",r.name,String(r.t),fmtS2(r.res),fmtS2(Math.round(r.t>0?r.res/r.t:0))];};
   drawTable("Ranking acumulado del año",["#","Jugador","Torneos","Acumulado","Promedio"],["center","left","center","right","right"],t2s,t2v,function(r){var rc=r.res>0?GREEN:r.res<0?RED:BLACK;return[BLACK,BLACK,BLACK,rc,rc];});
 
-  var lRs = pagos.slice();
-  if(_pagosExtra && _pagosExtra.length) _pagosExtra.forEach(function(pe){ lRs.push({de:pe.de, a:pe.a, monto:pe.monto}); });
-  if(!lRs.length) lRs = [{de:"Todo cuadra",a:"",monto:0}];
+  var hasExtrasForPdf = (_pagosExtra&&_pagosExtra.length)||(_gastosCompartidos&&_gastosCompartidos.length);
+  var lRs;
+  if(hasExtrasForPdf){
+    lRs = calcPagosNetos().map(function(p){return{de:p.de,a:p.a,monto:p.monto};});
+    if(!lRs.length) lRs = [{de:"Todo cuadra",a:"",monto:0}];
+  } else {
+    lRs = pagos.map(function(p){var key=p.de+"_"+p.a;var ov=T.pagoOverrides&&T.pagoOverrides[key];var m=(ov!==undefined&&ov>=0)?ov:p.montoBase;return{de:p.de,a:p.a,monto:m};});
+    if(!lRs.length) lRs = [{de:"Todo cuadra",a:"",monto:0}];
+  }
   var lv=function(r){return[r.de,r.monto>0?"->":"",r.a,r.monto>0?fmtN(r.monto):""];};
   drawTable("Quién paga a quién",["Paga","","Recibe","Monto"],["left","center","left","right"],lRs,lv,function(){return[[192,0,0],[100,100,100],[0,112,0],BLACK];});
 
