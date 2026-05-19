@@ -846,6 +846,35 @@ function calcPagos() {
   return pagos;
 }
 
+function calcPagosNetos(){
+  var bals = {};
+  var pagosJuego = calcPagos();
+  pagosJuego.forEach(function(p){
+    var key=p.de+"_"+p.a; var ov=T.pagoOverrides&&T.pagoOverrides[key];
+    var m=(ov!==undefined&&ov>=0)?ov:p.montoBase;
+    bals[p.de]=(bals[p.de]||0)-m; bals[p.a]=(bals[p.a]||0)+m;
+  });
+  (_pagosExtra||[]).forEach(function(pe){
+    bals[pe.de]=(bals[pe.de]||0)-pe.monto; bals[pe.a]=(bals[pe.a]||0)+pe.monto;
+  });
+  (_gastosCompartidos||[]).forEach(function(g){
+    g.participantes.forEach(function(p){
+      if(p.name!==g.quien){bals[p.name]=(bals[p.name]||0)-p.parte;bals[g.quien]=(bals[g.quien]||0)+p.parte;}
+    });
+  });
+  var deb=[],cre=[];
+  Object.keys(bals).forEach(function(n){var b=bals[n];if(b<-10)deb.push({name:n,bal:-b});else if(b>10)cre.push({name:n,bal:b});});
+  deb.sort(function(a,b){return b.bal-a.bal;}); cre.sort(function(a,b){return b.bal-a.bal;});
+  var result=[],di=0,ci=0;
+  while(di<deb.length&&ci<cre.length){
+    var m=Math.min(deb[di].bal,cre[ci].bal);
+    if(m>10)result.push({de:deb[di].name,a:cre[ci].name,monto:Math.round(m)});
+    deb[di].bal-=m;cre[ci].bal-=m;
+    if(deb[di].bal<10)di++;if(cre[ci].bal<10)ci++;
+  }
+  return result;
+}
+
 function renderPayments() {
   var body = document.getElementById("pay-body");
   var c = calcPozo();
