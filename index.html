@@ -239,6 +239,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--f);font-size:14px;
   <div class="ph2" style="display:flex;align-items:center;justify-content:space-between">
     <h2>Liquidación — quién paga a quién</h2>
     <button class="btn" onclick="openPagoModal()" style="font-size:11px;height:26px;padding:0 10px">+ Pago</button>
+    <button class="btn" onclick="openGastoModal()" style="font-size:11px;height:26px;padding:0 10px">+ Gasto</button>
   </div>
   <div class="pb2" id="pay-body"><span class="nop">Asigna posiciones para calcular pagos.</span></div>
 </div>
@@ -274,6 +275,25 @@ body{background:var(--bg);color:var(--text);font-family:var(--f);font-size:14px;
   &#9679; Comida $8.000 por asistente al host. El host no paga.<br>
   &#9679; Sincronizado en tiempo real con Firebase.
 </div>
+</div>
+
+<!-- Gasto Compartido Modal -->
+<div id="modal-gasto" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:600;align-items:center;justify-content:center;overflow-y:auto">
+  <div style="background:var(--bg);margin:20px auto;width:300px;border-radius:12px;padding:20px;box-shadow:0 8px 32px rgba(0,0,0,0.4)">
+    <div style="font-size:14px;font-weight:600;color:var(--fg);margin-bottom:14px">Gasto compartido</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Pagó</div>
+    <select id="gasto-quien" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--fg);font-size:14px;margin-bottom:10px"></select>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Concepto</div>
+    <input type="text" id="gasto-concepto" style="width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--fg);font-size:14px;margin-bottom:10px" placeholder="Ej: Naipes">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Monto total</div>
+    <input type="number" id="gasto-monto" inputmode="numeric" pattern="[0-9]*" style="width:100%;box-sizing:border-box;font-size:20px;font-weight:600;text-align:center;padding:10px;border:2px solid var(--blue);border-radius:8px;background:var(--bg2);color:var(--fg);outline:none;margin-bottom:12px" placeholder="0" oninput="actualizarDivision()">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Dividir entre</div>
+    <div id="gasto-jugadores" style="display:flex;flex-direction:column;gap:4px;margin-bottom:14px;max-height:200px;overflow-y:auto"></div>
+    <div style="display:flex;gap:8px">
+      <button onclick="document.getElementById('modal-gasto').style.display='none'" style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--fg);font-size:14px;cursor:pointer">Cancelar</button>
+      <button onclick="confirmarGasto()" style="flex:1;padding:10px;border:none;border-radius:8px;background:var(--blue);color:#fff;font-size:14px;font-weight:600;cursor:pointer">Agregar</button>
+    </div>
+  </div>
 </div>
 
 <!-- Pago Extra Modal -->
@@ -1052,6 +1072,54 @@ function importarBackup(input){
   };
   reader.readAsText(file);
   input.value = "";
+}
+
+// ── GASTOS COMPARTIDOS ─────────────────────────────────────────────────────────
+function openGastoModal(){
+  var activos=T.players.filter(function(p){return p.asiste;}).map(function(p){return p.name;});
+  document.getElementById("gasto-quien").innerHTML=activos.map(function(n){return '<option value="'+n+'">'+n+'</option>';}).join("");
+  document.getElementById("gasto-concepto").value="";
+  document.getElementById("gasto-monto").value="";
+  document.getElementById("gasto-jugadores").innerHTML=activos.map(function(n){
+    return '<label style="display:flex;align-items:center;gap:8px;padding:4px 0">'
+      +'<input type="checkbox" class="gasto-chk" value="'+n+'" checked style="width:16px;height:16px;cursor:pointer" oninput="actualizarDivision()">'
+      +'<span style="flex:1;font-size:13px">'+n+'</span>'
+      +'<input type="number" class="gasto-ind" data-name="'+n+'" inputmode="numeric" style="width:80px;padding:4px;border:1px solid var(--border);border-radius:6px;background:var(--bg2);color:var(--fg);font-size:13px;text-align:right" placeholder="0">'
+      +'</label>';
+  }).join("");
+  document.getElementById("modal-gasto").style.display="flex";
+  actualizarDivision();
+}
+function actualizarDivision(){
+  var monto=parseInt(document.getElementById("gasto-monto").value)||0;
+  var chks=document.querySelectorAll(".gasto-chk:checked");
+  var parte=chks.length>0?Math.round(monto/chks.length):0;
+  document.querySelectorAll(".gasto-ind").forEach(function(inp){
+    var chk=document.querySelector('.gasto-chk[value="'+inp.dataset.name+'"]');
+    inp.value=(chk&&chk.checked)?parte:"";
+  });
+}
+function confirmarGasto(){
+  var quien=document.getElementById("gasto-quien").value;
+  var concepto=document.getElementById("gasto-concepto").value.trim()||"Gasto";
+  var monto=parseInt(document.getElementById("gasto-monto").value);
+  if(!quien||isNaN(monto)||monto<=0){alert("Datos incompletos.");return;}
+  var participantes=[];
+  document.querySelectorAll(".gasto-chk:checked").forEach(function(chk){
+    var inp=document.querySelector('.gasto-ind[data-name="'+chk.value+'"]');
+    var parte=parseInt(inp&&inp.value)||0;
+    if(parte>0)participantes.push({name:chk.value,parte:parte});
+  });
+  if(!participantes.length){alert("Selecciona al menos un participante.");return;}
+  _gastosCompartidos.push({quien:quien,concepto:concepto,monto:monto,participantes:participantes});
+  DB.ref("torneo/gastosCompartidos").set(_gastosCompartidos);
+  document.getElementById("modal-gasto").style.display="none";
+  renderPayments();
+}
+function eliminarGasto(gi){
+  _gastosCompartidos.splice(gi,1);
+  DB.ref("torneo/gastosCompartidos").set(_gastosCompartidos.length?_gastosCompartidos:null);
+  renderPayments();
 }
 
 // ── PAGOS EXTRA ──────────────────────────────────────────────────────────────
