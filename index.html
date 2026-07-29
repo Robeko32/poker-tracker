@@ -430,7 +430,8 @@ var _mostrandoNeto = false;
 var saving = false;
 
 function defT() {
-  var d = new Date().toISOString().slice(0,10);
+  var now = new Date();
+  var d = now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0')+'-'+String(now.getDate()).padStart(2,'0');
   return {
     fecha: d, tipo: "addon", host: "", nro: 1,
     players: PLAYERS.map(function(n) {
